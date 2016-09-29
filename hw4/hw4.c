@@ -1,5 +1,5 @@
 /*
- * HW3: Scene in 3D
+ * HW4: Projections
  *
  * Ryo Suzuki
  * rysu7393
@@ -33,13 +33,24 @@ double dim = 3;
 double len = 2;
 // Maximum number
 int n = 50000;
-// Line trace
-int current = 0;
-double percent = 0;
-// Points array
-double points[50000][3];
-// Colors array
-double colors[50000][3];
+// Field of view (for perspective)
+int fov = 60;
+// Aspect ratio
+double asp=1;
+// View mode for print
+char* views[] = {"Orthogonal", "Perspective", "First Person"};
+// X-coordinate of camera position
+double EX = 0;
+// Y-coordinate of camera position
+double EY = 0;
+// Z-coordinate of camera position
+double EZ = 10;
+// X-coordinate of where the camera is looking
+double AX = 0;
+// Y-coordinate of where the camera is looking
+double AY = 0;
+// Z-coordinate of where the camera is looking
+double AZ = 0;
 
 //  Cosine and Sine in degrees
 #define Cos(x) (cos((x)*3.1415927/180))
@@ -354,8 +365,26 @@ void Town () {
     Tree(dist*3, 0, -dist*0.4, 0.2, 0.6);
     Tree(dist, 0, dist*3, 0.2, 0.5);
   }
+}
 
-
+/*
+ *  Set projection
+ */
+void projection() {
+   //  Tell OpenGL we want to manipulate the projection matrix
+   glMatrixMode(GL_PROJECTION);
+   //  Undo previous transformations
+   glLoadIdentity();
+   //  Perspective transformation
+   if (mode)
+      gluPerspective(fov,asp,dim/4,4*dim);
+   //  Orthogonal projection
+   else
+      glOrtho(-asp*dim,+asp*dim, -dim,+dim, -dim,+dim);
+   //  Switch to manipulating the model matrix
+   glMatrixMode(GL_MODELVIEW);
+   //  Undo previous transformations
+   glLoadIdentity();
 }
 
 
@@ -367,11 +396,30 @@ void display () {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   // Enable Z-buffering in OpenGL
   glEnable(GL_DEPTH_TEST);
-
-  // Set view angle
+  // Undo previous transformations
   glLoadIdentity();
-  glRotatef(ph, 1, 0, 0);
-  glRotatef(th, 0, 1, 0);
+
+  //  Perspective - set eye position
+  if (mode == 1){
+    double Ex = -2*dim*Sin(th)*Cos(ph);
+    double Ey = +2*dim        *Sin(ph);
+    double Ez = +2*dim*Cos(th)*Cos(ph);
+    gluLookAt(Ex,Ey,Ez , 0,0,0 , 0,Cos(ph),0);
+  }
+  //  Orthogonal - set world orientation
+  else if(mode == 0){
+    glRotatef(ph,1,0,0);
+    glRotatef(th,0,1,0);
+  }
+  // First person view
+  else if(mode == 2){
+    // Recalculate where the camera is looking
+    AX = -2*dim*Sin(th)*Cos(ph);
+    AY = -2*dim*Sin(ph);
+    AZ = -2*dim*Cos(th)*Cos(ph);
+    // Orient the scene so it imitates first person movement
+    gluLookAt(EX, EY, EZ, AX + EX, AY + EY, AZ + EZ, 0, 1, 0);
+  }
 
   glPushMatrix();
   glColor3f(0, 0, 1);
@@ -400,7 +448,7 @@ void display () {
 
   // Display parameters
   glWindowPos2i(5,5);
-  Print("Angle=%d,%d  Axes=%s", th, ph, axes ? "On" : "Off");
+  Print("Angle=%d,%d  Axes=%s  Dim=%.1f  FOV=%d  Projection=%s", th, ph, axes ? "On" : "Off", dim, fov, views[mode] );
 
   // Render the scene and make it visible
   glFlush();
@@ -427,6 +475,7 @@ void special(int key, int x, int y) {
   th %= 360;
   ph %= 360;
   // Tell GLUT it is necessary to redisplay the scene
+  projection();
   glutPostRedisplay();
 }
 
@@ -441,12 +490,34 @@ void key(unsigned char ch, int x, int y) {
   // Reset view angle
   else if (ch == '0') {
     th = ph = 0;
+    axes = 1;
+    th = ph = 0;
+    fov = 55;
+    dim = 5;
   }
   // Toggle axes
   else if (ch == 'a' || ch == 'A') {
     axes = 1-axes;
   }
-  // Tell GLUT it is necessary to redisplay the scene
+  else if (ch == 'm' || ch == 'M') {
+    mode = (mode + 1) % 3;
+  }
+  else if (ch == '+' && fov > 1) {
+    fov--;
+  }
+  else if (ch == '-') {
+    fov++;
+  }
+  // Move forward in the scene
+  else if(ch == 'f' || ch == 'F') {
+    EX += AX*.1;
+    EZ += AZ*.1;
+  }
+  // Move backwards in the scene
+  else if(ch == 'b' || ch == 'B') {
+    EX -= AX*.1;
+    EZ -= AZ*.1;
+  }
   // Look down x-axis
   else if (ch == 'x') {
     th = -90;
@@ -461,38 +532,45 @@ void key(unsigned char ch, int x, int y) {
   else if (ch == 'z') {
     th = ph = 0;
   }
+  //  Increase dimension
+  else if (ch == 'D') {
+    dim += 0.1;
+  }
+  //  PageDown key - decrease dim
+  else if (ch == 'd' && dim>1) {
+    dim -= 0.1;
+  }
+
+  projection();
   glutPostRedisplay();
 }
 
 /*
  *  GLUT calls this routine when the window is resized
  */
-void reshape(int width,int height)
-{
+void reshape(int width,int height) {
   //  Ratio of the width to the height of the window
-  double w2h = (height>0) ? (double)width/height : 1;
+  asp = (height>0) ? (double)width/height : 1;
   //  Set the viewport to the entire window
   glViewport(0,0, width,height);
   //  Tell OpenGL we want to manipulate the projection matrix
   glMatrixMode(GL_PROJECTION);
   //  Undo previous transformations
   glLoadIdentity();
-  //  Orthogonal projection box adjusted for the
-  //  aspect ratio of the window
-  glOrtho(-dim*w2h,+dim*w2h, -dim,+dim, -dim,+dim);
   //  Switch to manipulating the model matrix
   glMatrixMode(GL_MODELVIEW);
   //  Undo previous transformations
   glLoadIdentity();
+  //  Set the viewport to the entire window
+  glViewport(0,0, width,height);
+  //  Set projection
+  projection();
 }
 
 /*
  *  Incrment current line trace
  */
 void idle () {
-  if (current < n)
-    current += 10;
-    glutPostRedisplay();
 }
 
 /*
@@ -506,7 +584,7 @@ int main (int argc, char *argv[]) {
   // Request 800 x 800 pixel window
   glutInitWindowSize(800, 800);
   // Create the window
-  glutCreateWindow("Scene in 3D - Ryo Suzuki");
+  glutCreateWindow("Projections - Ryo Suzuki");
   // Tell GLUT to call "display" when the scene should be drawn
   glutDisplayFunc(display);
   // Tell GLUT to call "reshape" when the window is resized
