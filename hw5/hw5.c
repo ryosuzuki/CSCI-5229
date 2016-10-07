@@ -28,13 +28,13 @@ int ph = 0;
 // Color mode
 int mode = 0;
 // Dimension of orthogonal box
-double dim = 3;
+double dim = 4.5;
 // Length of axes
 double len = 2;
 // Maximum number
 int n = 50000;
 // Field of view (for perspective)
-int fov = 60;
+int fov = 80;
 // Aspect ratio
 double asp=1;
 // View mode for print
@@ -51,6 +51,26 @@ double AX = 0;
 double AY = 0;
 // Z-coordinate of where the camera is looking
 double AZ = 0;
+
+// Lighting
+int light = 1;
+// Ambient light
+int ambient = 30;
+// Diffuse light
+int diffuse = 100;
+// Emission light
+int emission = 0;
+// Specular light
+int specular = 0;
+// Light distance
+int light_distance = 5;
+// Light angle
+int light_angle = 90;
+// Light height
+int light_height = 3;
+// Light move
+int light_move = 1;
+
 
 //  Cosine and Sine in degrees
 #define Cos(x) (cos((x)*3.1415927/180))
@@ -82,18 +102,11 @@ void Print (const char* format , ...) {
     glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18,*ch++);
 }
 
-/*
- *  Draw vertex in polar coordinates
- */
-void Vertex (double th,double ph) {
-  glColor3f(Cos(th)*Cos(th), Sin(ph)*Sin(ph) ,Sin(th)*Sin(th));
-  glVertex3d(Sin(th)*Cos(ph), Sin(ph) ,Cos(th)*Cos(ph));
-}
 
 /*
  *  Draw a sphere at (x,y,z) radius (r)
  */
-void Sphere (double x, double y, double z, double radius) {
+void Sun (double x, double y, double z, double radius) {
   const int d=5;
   //  Save transformation
   glPushMatrix();
@@ -101,31 +114,32 @@ void Sphere (double x, double y, double z, double radius) {
   glTranslatef(x, y, z);
   glScalef(radius, radius, radius);
 
-  //  South pole cap
-  glBegin(GL_TRIANGLE_FAN);
-  Vertex(0, -90);
-  for (th=0; th<=360; th+=d) {
-    Vertex(th, d-90);
-  }
-  glEnd();
+  glColor3f(1, 1, 1);
+  float shininess[] = {0};
+  float color[] = {1, 1, 1, 1.0};
+  float emit[] = {0.0, 0.0, 0.01*emission, 1.0};
+  glMaterialfv(GL_FRONT,GL_SHININESS, shininess);
+  glMaterialfv(GL_FRONT,GL_SPECULAR, color);
+  glMaterialfv(GL_FRONT,GL_EMISSION, emit);
 
-  //  Latitude bands
-  for (int ph=d-90; ph<=90-2*d; ph+=d) {
+  for (int ph=-90; ph<90; ph+=d) {
     glBegin(GL_QUAD_STRIP);
     for (int th=0; th<=360; th+=d) {
-      Vertex(th, ph);
-      Vertex(th, ph+d);
+      double x_1 = Sin(th)*Cos(ph);
+      double y_1 = Cos(th)*Cos(ph);
+      double z_1 = Sin(ph);
+      glNormal3d(x_1, y_1, z_1);
+      glVertex3d(x_1, y_1, z_1);
+
+      double x_2 = Sin(th)*Cos(ph+d);
+      double y_2 = Cos(th)*Cos(ph+d);
+      double z_2 = Sin(ph+d);
+      glNormal3d(x_2, y_2, z_2);
+      glVertex3d(x_2, y_2, z_2);
     }
     glEnd();
   }
 
-  //  North pole cap
-  glBegin(GL_TRIANGLE_FAN);
-  Vertex(0, 90);
-  for (int th=0; th<=360; th+=d) {
-    Vertex(th, 90-d);
-  }
-  glEnd();
   //  Undo transformations
   glPopMatrix();
 }
@@ -144,14 +158,23 @@ void Cylinder (double x, double y, double z, double radius, double height) {
   glVertex3f(0, 0, 0);
   for (int th=0; th<=360; th+=d) {
     glColor3f(0.4*Cos(th), 0.4 , 0.4*Sin(th));
+    glNormal3d(Sin(th), 0, Cos(th));
     glVertex3f(Sin(th), 0, Cos(th));
   }
   glEnd();
 
-  // //  Latitude bands
+  // Latitude bands
   for (int th=0; th<=360; th+=d) {
     glBegin(GL_QUADS);
     glColor3f(0.4*Cos(th), 0.4 , 0.4*Sin(th));
+
+    float shininess[] = {0};
+    float color[] = {0.4*Cos(th), 0.4, 0.4*Sin(th), 1.0};
+    float emit[]  = {0.0, 0.0, 0.01*emission, 1.0};
+    glMaterialfv(GL_FRONT,GL_SHININESS, shininess);
+    glMaterialfv(GL_FRONT,GL_SPECULAR, color);
+    glMaterialfv(GL_FRONT,GL_EMISSION, emit);
+
     glVertex3f(Sin(th), 0, Cos(th));
     glVertex3f(Sin(th), 1, Cos(th));
     glVertex3f(Sin(th+d), 1, Cos(th+d));
@@ -186,6 +209,15 @@ void Cone (double x, double y, double z, double radius, double height) {
   glVertex3f(0, 0, 0);
   for (int th=0; th<=360; th+=d) {
     glColor3f(0.5*Cos(th), 1 , 0.5*Sin(th));
+
+    float shininess[] = {0};
+    float color[] = {0.5*Cos(th), 1, 0.5*Sin(th), 1.0};
+    float emit[]  = {0.0, 0.0, 0.01*emission, 1.0};
+    glMaterialfv(GL_FRONT,GL_SHININESS, shininess);
+    glMaterialfv(GL_FRONT,GL_SPECULAR, color);
+    glMaterialfv(GL_FRONT,GL_EMISSION, emit);
+
+    glNormal3d(Sin(th), 0, Cos(th));
     glVertex3f(Sin(th), 0, Cos(th));
   }
   glEnd();
@@ -194,6 +226,15 @@ void Cone (double x, double y, double z, double radius, double height) {
   glVertex3f(0, 1, 0);
   for (int th=0; th<=360; th+=d) {
     glColor3f(0.5*Cos(th), 1 , 0.5*Sin(th));
+
+    float shininess[] = {0};
+    float color[] = {0.5*Cos(th), 1, 0.5*Sin(th), 1.0};
+    float emit[]  = {0.0, 0.0, 0.01*emission, 1.0};
+    glMaterialfv(GL_FRONT,GL_SHININESS, shininess);
+    glMaterialfv(GL_FRONT,GL_SPECULAR, color);
+    glMaterialfv(GL_FRONT,GL_EMISSION, emit);
+
+    glNormal3d(Sin(th), 0, Cos(th));
     glVertex3f(Sin(th), 0, Cos(th));
   }
   glEnd();
@@ -238,37 +279,53 @@ void Cube(double x, double y, double z, double width, double height, double dept
   glRotatef(angle, ax, ay, az);
   glScalef(width, height, depth);
   glColor3f(0, 0, 1);
+
+
+  float shininess[] = {0};
+  float color[] = {0, 0, 1, 1.0};
+  float emit[]  = {0.0, 0.0, 0.01*emission, 1.0};
+  glMaterialfv(GL_FRONT,GL_SHININESS, shininess);
+  glMaterialfv(GL_FRONT,GL_SPECULAR, color);
+  glMaterialfv(GL_FRONT,GL_EMISSION, emit);
+
+
   //  Cube
   glBegin(GL_QUADS);
-  glVertex3f(-1, 0, +1);
-  glVertex3f(+1, 0, +1);
-  glVertex3f(+1, +1, +1);
-  glVertex3f(-1, +1, +1);
+  glNormal3f( 0, 0,+1);
+  glVertex3f(-1, 0,+1);
+  glVertex3f(+1, 0,+1);
+  glVertex3f(+1,+1,+1);
+  glVertex3f(-1,+1,+1);
   //  Back
-  glVertex3f(+1, 0, -1);
-  glVertex3f(-1, 0, -1);
-  glVertex3f(-1, +1, -1);
-  glVertex3f(+1, +1, -1);
+  glNormal3f( 0, 0,-1);
+  glVertex3f(+1, 0,-1);
+  glVertex3f(-1, 0,-1);
+  glVertex3f(-1,+1,-1);
+  glVertex3f(+1,+1,-1);
   //  Right
-  glVertex3f(+1, 0, +1);
-  glVertex3f(+1, 0, -1);
-  glVertex3f(+1, +1, -1);
-  glVertex3f(+1, +1, +1);
+  glNormal3f(+1, 0, 0);
+  glVertex3f(+1, 0,+1);
+  glVertex3f(+1, 0,-1);
+  glVertex3f(+1,+1,-1);
+  glVertex3f(+1,+1,+1);
   //  Left
-  glVertex3f(-1, 0, -1);
-  glVertex3f(-1, 0, +1);
-  glVertex3f(-1, +1, +1);
-  glVertex3f(-1, +1, -1);
+  glNormal3f(-1, 0, 0);
+  glVertex3f(-1, 0,-1);
+  glVertex3f(-1, 0,+1);
+  glVertex3f(-1,+1,+1);
+  glVertex3f(-1,+1,-1);
   //  Top
-  glVertex3f(-1, +1, +1);
-  glVertex3f(+1, +1, +1);
-  glVertex3f(+1, +1, -1);
-  glVertex3f(-1, +1, -1);
+  glNormal3f( 0,+1, 0);
+  glVertex3f(-1,+1,+1);
+  glVertex3f(+1,+1,+1);
+  glVertex3f(+1,+1,-1);
+  glVertex3f(-1,+1,-1);
   //  Bottom
-  glVertex3f(-1, 0, -1);
-  glVertex3f(+1, 0, -1);
-  glVertex3f(+1, 0, +1);
-  glVertex3f(-1, 0, +1);
+  glNormal3f( 0,-1, 0);
+  glVertex3f(-1, 0,-1);
+  glVertex3f(+1, 0,-1);
+  glVertex3f(+1, 0,+1);
+  glVertex3f(-1, 0,+1);
   //  End
   glEnd();
   //  Undo transformations
@@ -286,30 +343,35 @@ void Roof(double x, double y, double z, double width, double height, double dept
   glColor3f(1, 0, 0);
   //  Front
   glBegin(GL_TRIANGLES);
+  glNormal3f(-0.6,0.3,0);
   glVertex3f(-1, -1, +1);
   glVertex3f(-1, -1, -1);
   glVertex3f( 0, +1, 0);
   glEnd();
   //  Back
   glBegin(GL_TRIANGLES);
+  glNormal3f(0,0.3,-0.6);
   glVertex3f(+1, -1, -1);
   glVertex3f(-1, -1, -1);
   glVertex3f( 0, +1, 0);
   glEnd();
   //  Right
   glBegin(GL_TRIANGLES);
+  glNormal3f(0,-0.3,0.6);
   glVertex3f(+1, -1, +1);
   glVertex3f(-1, -1, +1);
   glVertex3f( 0, +1, 0);
   glEnd();
   //  Left
   glBegin(GL_TRIANGLES);
+  glNormal3f(0.6,-0.3,0);
   glVertex3f(+1, -1, +1);
   glVertex3f(+1, -1, -1);
   glVertex3f( 0, +1, 0);
   glEnd();
   //  Bottom
   glBegin(GL_QUADS);
+  glNormal3f( 0, -1,  0);
   glVertex3f(-1, -1, -1);
   glVertex3f(+1, -1, -1);
   glVertex3f(+1, -1, +1);
@@ -421,12 +483,42 @@ void display () {
     gluLookAt(EX, EY, EZ, AX + EX, AY + EY, AZ + EZ, 0, 1, 0);
   }
 
+  if(light){
+    //  Translate intensity to color vectors
+    float Ambient[] = {0.01*ambient ,0.01*ambient ,0.01*ambient ,1.0};
+    float Diffuse[] = {0.01*diffuse ,0.01*diffuse ,0.01*diffuse ,1.0};
+    float Specular[] = {0.01*specular,0.01*specular,0.01*specular,1.0};
+    //  Light position
+    float Position[]  = {light_distance*Cos(light_angle), light_height, light_distance*Sin(light_angle),1.0};
+
+    //  Draw light position as ball (still no lighting here)
+    glColor3f(1,1,1);
+    Sun(Position[0], Position[1], Position[2], 0.3);
+    //  OpenGL should normalize normal vectors
+    glEnable(GL_NORMALIZE);
+    //  Enable lighting
+    glEnable(GL_LIGHTING);
+    //  glColor sets ambient and diffuse color materials
+    glColorMaterial(GL_FRONT_AND_BACK,GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
+    //  Enable light 0
+    glEnable(GL_LIGHT0);
+    //  Set ambient, diffuse, specular components and position of light 0
+    glLightfv(GL_LIGHT0,GL_AMBIENT ,Ambient);
+    glLightfv(GL_LIGHT0,GL_DIFFUSE ,Diffuse);
+    glLightfv(GL_LIGHT0,GL_SPECULAR,Specular);
+    glLightfv(GL_LIGHT0,GL_POSITION,Position);
+  }else{
+    glDisable(GL_LIGHTING);
+  }
+
   glPushMatrix();
   glColor3f(0, 0, 1);
   Town();
   glPopMatrix();
 
   // Draw axes (white)
+  glDisable(GL_LIGHTING);
   glColor3f(1, 1, 1);
   if (axes) {
     glBegin(GL_LINES);
@@ -448,12 +540,23 @@ void display () {
 
   // Display parameters
   glWindowPos2i(5,5);
-  Print("Angle=%d,%d  Axes=%s  Dim=%.1f  FOV=%d  Projection=%s", th, ph, axes ? "On" : "Off", dim, fov, views[mode] );
+  Print("Angle=%d,%d  Axes=%s  Dim=%.1f  Projection=%s  LightHeight=%d  LightMove=%s", th, ph, axes ? "On" : "Off", dim, views[mode], light_height, light_move ? "Move" : "Stop");
 
   // Render the scene and make it visible
   glFlush();
   glutSwapBuffers();
 }
+
+
+/*
+ *  Incrment current line trace
+ */
+void idle () {
+  double t = glutGet(GLUT_ELAPSED_TIME)/1000.0;
+  light_angle = fmod(90*t,360);
+  glutPostRedisplay();
+}
+
 
 /*
  *  GLUT calls this routine when an arrow key is pressed
@@ -494,6 +597,9 @@ void key(unsigned char ch, int x, int y) {
     th = ph = 0;
     fov = 55;
     dim = 5;
+    light_move = 1;
+    light_distance = 5;
+    light_height = 3;
   }
   // Toggle axes
   else if (ch == 'a' || ch == 'A') {
@@ -502,11 +608,11 @@ void key(unsigned char ch, int x, int y) {
   else if (ch == 'm' || ch == 'M') {
     mode = (mode + 1) % 3;
   }
-  else if (ch == '+' && fov > 1) {
-    fov--;
+  else if (ch == '+') {
+    dim -= 0.1;
   }
   else if (ch == '-') {
-    fov++;
+    dim += 0.1;
   }
   // Move forward in the scene
   else if(ch == 'f' || ch == 'F') {
@@ -532,16 +638,37 @@ void key(unsigned char ch, int x, int y) {
   else if (ch == 'z') {
     th = ph = 0;
   }
-  //  Increase dimension
-  else if (ch == 'D') {
-    dim += 0.1;
+  // Increase light height
+  else if (ch == 'u' || ch == 'U') {
+    light_height++;
   }
-  //  PageDown key - decrease dim
-  else if (ch == 'd' && dim>1) {
-    dim -= 0.1;
+  // Decrease light height
+  else if (ch == 'd' || ch == 'D') {
+    light_height--;
+  }
+  // Increase light distance
+  else if (ch == 'j' || ch == 'J') {
+    light_distance++;
+  }
+  // Decrease light distance
+  else if (ch == 'k' || ch == 'K') {
+    if (light_distance > 0)
+      light_distance--;
+  }
+  // Togle light move
+  else if (ch == 's' || ch == 'S') {
+    light_move = 1-light_move;
   }
 
   projection();
+
+  if (light_move) {
+    glutIdleFunc(idle);
+  } else {
+    glutIdleFunc(NULL);
+  }
+
+
   glutPostRedisplay();
 }
 
@@ -565,12 +692,6 @@ void reshape(int width,int height) {
   glViewport(0,0, width,height);
   //  Set projection
   projection();
-}
-
-/*
- *  Incrment current line trace
- */
-void idle () {
 }
 
 /*
