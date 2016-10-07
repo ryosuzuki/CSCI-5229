@@ -1,5 +1,5 @@
 /*
- * HW4: Projections
+ * HW5: Lighting
  *
  * Ryo Suzuki
  * rysu7393
@@ -705,7 +705,7 @@ int main (int argc, char *argv[]) {
   // Request 800 x 800 pixel window
   glutInitWindowSize(800, 800);
   // Create the window
-  glutCreateWindow("Projections - Ryo Suzuki");
+  glutCreateWindow("Lighting - Ryo Suzuki");
   // Tell GLUT to call "display" when the scene should be drawn
   glutDisplayFunc(display);
   // Tell GLUT to call "reshape" when the window is resized
